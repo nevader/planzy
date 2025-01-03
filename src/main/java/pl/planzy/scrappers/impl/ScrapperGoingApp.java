@@ -2,7 +2,6 @@ package pl.planzy.scrappers.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectWriter;
 import com.microsoft.playwright.*;
 import com.microsoft.playwright.options.LoadState;
 import org.slf4j.Logger;
@@ -11,93 +10,55 @@ import pl.planzy.scrappers.Scrapper;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 
 public class ScrapperGoingApp implements Scrapper {
 
     private static final Logger logger = LoggerFactory.getLogger(ScrapperGoingApp.class);
-    private static final String BASE_URL = "https://queue.goingapp.pl/szukaj?page=";
-    private static final int TOTAL_PAGES = 4; // Adjust as needed
-
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Override
     public void scrapeData() {
-        List<JsonNode> allData = new ArrayList<>();
-
         try (Playwright playwright = Playwright.create()) {
-            Browser browser = createBrowser(playwright);
+            Browser browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(false));
             Page page = browser.newPage();
 
-            for (int i = 1; i <= TOTAL_PAGES; i++) {
-                processPage(page, allData, i);
-            }
+            // Add a response listener to capture the desired XHR response
+            page.onResponse(response -> {
+                String url = response.url();
+                if (url.contains("algolia.net/1/indexes/*/queries")) {
+                    logger.info("Captured URL: {}", url);
+                    try {
+                        if (response.status() == 200 && response.headers().getOrDefault("content-type", "").contains("application/json")) {
+                            String responseBody = response.text();
+                            logger.info("Captured Response Body: {}", responseBody);
+
+                            // Parse JSON and save it to a file
+                            JsonNode jsonNode = mapper.readTree(responseBody);
+                            saveDataToFile(jsonNode, "algolia_response.json");
+                        } else {
+                            logger.warn("Response not JSON or unsuccessful: {}", url);
+                        }
+                    } catch (Exception e) {
+                        logger.error("Error processing response from URL: {}", url, e);
+                    }
+                }
+            });
+
+            // Navigate to the main page to trigger the desired XHR request
+            String mainUrl = "https://goingapp.pl";
+            logger.info("Navigating to URL: {}", mainUrl);
+            page.navigate(mainUrl);
+            page.waitForLoadState(LoadState.NETWORKIDLE);
 
             browser.close();
-            saveDataToFile(allData, "captured_data.json");
         } catch (Exception e) {
             logger.error("An error occurred while scraping data", e);
         }
     }
 
-    private Browser createBrowser(Playwright playwright) {
-        return playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(false));
-    }
-
-    private void processPage(Page page, List<JsonNode> allData, int pageIndex) {
-        String url = BASE_URL + pageIndex;
-        logger.info("Navigating to URL: {}", url);
-
-        List<JsonNode> pageData = scrapePage(page, url);
-        allData.addAll(pageData);
-    }
-
-    private List<JsonNode> scrapePage(Page page, String url) {
-        List<JsonNode> pageData = new ArrayList<>();
-
-        page.onResponse(response -> handleResponse(response, pageData));
-        page.navigate(url);
-        page.waitForLoadState(LoadState.NETWORKIDLE);
-
-        return pageData;
-    }
-
-    private void handleResponse(Response response, List<JsonNode> pageData) {
+    private void saveDataToFile(JsonNode data, String fileName) {
         try {
-            logger.info("Processing URL: {}", response.url());
-
-            if (isRelevantResponse(response)) {
-                processJsonResponse(response, pageData);
-            } else {
-                logger.warn("Non-JSON response from URL: {}", response.url());
-            }
-        } catch (Exception e) {
-            logger.error("Error processing response from URL: {}", response.url(), e);
-        }
-    }
-
-    private boolean isRelevantResponse(Response response) {
-        return response.url().contains("szukaj?page=") && response.status() == 200 && isJsonResponse(response);
-    }
-
-    private void processJsonResponse(Response response, List<JsonNode> pageData) throws IOException {
-        String responseBody = response.text();
-        logger.info("Captured Response Body: {}", responseBody);
-        JsonNode jsonNode = mapper.readTree(responseBody);
-        pageData.add(jsonNode);
-    }
-
-    private boolean isJsonResponse(Response response) {
-        String contentType = response.headers().getOrDefault("content-type", "").toLowerCase();
-        return contentType.contains("application/json");
-    }
-
-    private void saveDataToFile(List<JsonNode> data, String fileName) {
-        try {
-            ObjectWriter writer = mapper.writerWithDefaultPrettyPrinter();
-            writer.writeValue(new File(fileName), data);
+            mapper.writerWithDefaultPrettyPrinter().writeValue(new File(fileName), data);
             logger.info("Data successfully saved to {}", fileName);
         } catch (IOException e) {
             logger.error("Failed to save data to file: {}", fileName, e);
