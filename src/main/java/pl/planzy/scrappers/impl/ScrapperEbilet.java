@@ -2,12 +2,12 @@ package pl.planzy.scrappers.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.ObjectWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import pl.planzy.scrappers.Scrapper;
+import pl.planzy.scrappers.mapper.EventMapper;
+import pl.planzy.scrappers.mapper.impl.EventMapperEbilet;
 
-import java.io.File;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -19,6 +19,7 @@ public class ScrapperEbilet implements Scrapper {
 
     private static final Logger logger = LoggerFactory.getLogger(ScrapperEbilet.class);
     private final String baseUrl = "https://www.ebilet.pl/api/TitleListing/Search";
+    private final EventMapper eventMapper = new EventMapperEbilet();
 
     @Override
     public void scrapeData() {
@@ -57,9 +58,7 @@ public class ScrapperEbilet implements Scrapper {
                 }
             }
 
-            ObjectWriter writer = mapper.writerWithDefaultPrettyPrinter();
-            writer.writeValue(new File("scraped_data.json"), allData);
-            logger.info("Data saved to scraped_data.json");
+            eventMapper.mapEvents(allData);
 
         } catch (Exception e) {
             logger.error("An error occurred while scraping data", e);
