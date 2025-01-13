@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import pl.planzy.scrappers.mapper.EventMapper;
+
 import java.io.File;
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -43,8 +44,9 @@ public class EventMapperEbilet implements EventMapper {
     }
 
     private JsonNode mapEbiletEvent(JsonNode event) {
-        long startDateTimestamp = 0;
-        long endDateTimeStamp = 0;
+
+        String startDateTimestamp = "null";
+        String endDateTimeStamp = "null";
 
         if (event.has("dateFrom") && !event.get("dateFrom").isNull() && !event.get("dateFrom").asText().isEmpty() && !event.get("dateFrom").asText().equalsIgnoreCase("null")) {
             try {
@@ -89,6 +91,29 @@ public class EventMapperEbilet implements EventMapper {
             url = event.get("linkTo").asText();
         }
 
+        StringBuilder cat = new StringBuilder();
+
+        if (event.has("subcategoryName") && !event.get("subcategoryName").isNull()
+                && !event.get("subcategoryName").asText().isBlank()
+                && !event.get("subcategoryName").asText().equalsIgnoreCase("null")) {
+
+            cat.append(event.get("subcategoryName").asText()).append(", ");
+        }
+
+        if (event.has("category") && !event.get("category").isNull()
+                && !event.get("category").asText().isBlank()
+                && !event.get("category").asText().equalsIgnoreCase("null")) {
+
+            cat.append(event.get("category").asText()).append(", ");
+        }
+
+        if (event.has("subcategory") && !event.get("category").isNull()
+                && !event.get("subcategory").asText().isBlank()
+                && !event.get("subcategory").asText().equalsIgnoreCase("null")) {
+
+            cat.append(event.get("subcategory").asText());
+        }
+
         return mapper.createObjectNode()
                 .put("event_name", event.get("title").asText())
                 .put("artists", artistsNames)
@@ -99,17 +124,15 @@ public class EventMapperEbilet implements EventMapper {
                 .put("location", location)
                 .put("place", customName)
                 .put("category", event.get("categoryName").asText())
-                .put("subcategoryName", event.get("subcategoryName").asText())
-                .put("type", event.get("category").asText())
-                .put("tags", event.get("subcategory").asText())
+                .put("tags", cat.toString())
                 .put("description", event.get("metaDescription").asText())
                 .put("source", "eBilet");
     }
 
-    private long convertToTimestamp(String dateString) {
+    private String convertToTimestamp(String dateString) {
         try {
             LocalDateTime localDateTime = LocalDateTime.parse(dateString);
-            return localDateTime.toInstant(ZoneOffset.UTC).toEpochMilli();
+            return String.valueOf(localDateTime.toEpochSecond(ZoneOffset.UTC));
         } catch (Exception e) {
             logger.error("Error parsing date: {}", dateString, e);
             throw new RuntimeException("Error parsing date: " + dateString, e);

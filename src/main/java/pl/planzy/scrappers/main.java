@@ -7,7 +7,7 @@ public class main {
 
     public static void main(String[] args) {
 
-        Scrapper scrapper = new ScrapperEbilet();
+        Scrapper scrapper = new ScrapperGoingApp();
 
         scrapper.scrapeData();
     }

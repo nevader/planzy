@@ -8,18 +8,23 @@ import com.microsoft.playwright.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import pl.planzy.scrappers.Scrapper;
+import pl.planzy.scrappers.mapper.EventMapper;
+import pl.planzy.scrappers.mapper.impl.EventMapperGoingApp;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ScrapperGoingApp implements Scrapper {
 
     private static final Logger logger = LoggerFactory.getLogger(ScrapperGoingApp.class);
     private static final String BASE_URL = "https://queue.goingapp.pl/szukaj";
     private static final String LOAD_MORE_BUTTON_SELECTOR = ".ais-InfiniteHits-loadMore";
-    private static final String OUTPUT_FILE = "captured_data.json";
+    private static final String OUTPUT_FILE = "scapped_going.json";
     private final ObjectMapper mapper = new ObjectMapper();
     private final ArrayNode aggregatedResults = mapper.createArrayNode();
+    private final EventMapper eventMapper = new EventMapperGoingApp();
 
     @Override
     public void scrapeData() {
@@ -70,8 +75,11 @@ public class ScrapperGoingApp implements Scrapper {
 
             browser.close();
 
-            // Save all captured data to a JSON file
-            saveDataToFile(aggregatedResults, OUTPUT_FILE);
+            List<JsonNode> resultsList = new ArrayList<>();
+            aggregatedResults.forEach(resultsList::add);
+
+            eventMapper.mapEvents(resultsList);
+
 
         } catch (Exception e) {
             logger.error("An error occurred while scraping data", e);
