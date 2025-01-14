@@ -4,20 +4,24 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 import pl.planzy.scrappers.mapper.EventMapper;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
+
+@Component("eventMapperGoingApp")
 public class EventMapperGoingApp implements EventMapper {
 
     private static final Logger logger = LoggerFactory.getLogger(EventMapperGoingApp.class);
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Override
-    public void mapEvents(List<JsonNode> data) {
+    public List<JsonNode> mapEvents(List<JsonNode> data) {
         logger.info("Starting to map events. Total events to map: {}", data.size());
 
         List<JsonNode> mappedEvents = new ArrayList<>();
@@ -38,6 +42,7 @@ public class EventMapperGoingApp implements EventMapper {
         }
 
         logger.info("Finished mapping events. Total mapped events: {}", mappedEvents.size());
+        return null;
     }
 
     private JsonNode mapGoingAppEvent(JsonNode event) {

@@ -7,27 +7,41 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.microsoft.playwright.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import pl.planzy.scrappers.Scrapper;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Component;
 import pl.planzy.scrappers.mapper.EventMapper;
-import pl.planzy.scrappers.mapper.impl.EventMapperGoingApp;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+
+@Component("scrapperGoingApp")
 public class ScrapperGoingApp implements Scrapper {
 
-    private static final Logger logger = LoggerFactory.getLogger(ScrapperGoingApp.class);
     private static final String BASE_URL = "https://queue.goingapp.pl/szukaj";
     private static final String LOAD_MORE_BUTTON_SELECTOR = ".ais-InfiniteHits-loadMore";
-    private static final String OUTPUT_FILE = "scapped_going.json";
+
+    private final List<JsonNode> resultsList = new ArrayList<>();
+
+    private static final Logger logger = LoggerFactory.getLogger(ScrapperGoingApp.class);
     private final ObjectMapper mapper = new ObjectMapper();
-    private final ArrayNode aggregatedResults = mapper.createArrayNode();
-    private final EventMapper eventMapper = new EventMapperGoingApp();
+
+    private final EventMapper eventMapper;
+
+    @Autowired
+    public ScrapperGoingApp(@Qualifier("eventMapperGoingApp") EventMapper eventMapper) {
+        this.eventMapper = eventMapper;
+    }
+
 
     @Override
     public void scrapeData() {
+
+        ArrayNode aggregatedResults = mapper.createArrayNode();
+
         try (Playwright playwright = Playwright.create()) {
             Browser browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(true));
             Page page = browser.newPage();
@@ -75,7 +89,6 @@ public class ScrapperGoingApp implements Scrapper {
 
             browser.close();
 
-            List<JsonNode> resultsList = new ArrayList<>();
             aggregatedResults.forEach(resultsList::add);
 
             eventMapper.mapEvents(resultsList);
@@ -84,6 +97,16 @@ public class ScrapperGoingApp implements Scrapper {
         } catch (Exception e) {
             logger.error("An error occurred while scraping data", e);
         }
+    }
+
+    @Override
+    public List<JsonNode> getResults() {
+        return resultsList;
+    }
+
+    @Override
+    public EventMapper getMapper() {
+        return eventMapper;
     }
 
     private void saveDataToFile(ArrayNode data, String fileName) {
