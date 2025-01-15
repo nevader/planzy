@@ -2,6 +2,8 @@ package pl.planzy.scrappers.mapper.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -13,9 +15,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 
+import java.util.List;
 
 @Component("eventMapperEbilet")
 public class EventMapperEbilet implements EventMapper {
@@ -35,13 +36,6 @@ public class EventMapperEbilet implements EventMapper {
             } catch (Exception e) {
                 logger.error("Error mapping event: {}", event, e);
             }
-        }
-
-        try {
-            mapper.writeValue(new File("mapped_events.json"), mappedEvents);
-            logger.info("Mapped events saved to mapped_events.json");
-        } catch (IOException e) {
-            logger.error("Error writing mapped events to file", e);
         }
 
         logger.info("Finished mapping events. Total mapped events: {}", mappedEvents.size());
@@ -144,4 +138,5 @@ public class EventMapperEbilet implements EventMapper {
             throw new RuntimeException("Error parsing date: " + dateString, e);
         }
     }
+
 }

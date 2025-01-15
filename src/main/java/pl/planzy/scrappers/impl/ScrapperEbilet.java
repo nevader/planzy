@@ -19,11 +19,7 @@ import java.util.List;
 @Component("scrapperEbilet")
 public class ScrapperEbilet implements Scrapper {
 
-    private final String baseUrl = "https://www.ebilet.pl/api/TitleListing/Search";
-    private final List<JsonNode> allData = new ArrayList<>();
-
     private static final Logger logger = LoggerFactory.getLogger(ScrapperEbilet.class);
-
     private final EventMapper eventMapper;
 
     @Autowired
@@ -32,7 +28,10 @@ public class ScrapperEbilet implements Scrapper {
     }
 
     @Override
-    public void scrapeData() {
+    public List<JsonNode> scrapeData() {
+
+        List<JsonNode> scrappedData = new ArrayList<>();
+
         int size = 20;
         int top = 0;
         boolean hasNext = true;
@@ -43,7 +42,10 @@ public class ScrapperEbilet implements Scrapper {
             ObjectMapper mapper = new ObjectMapper();
 
             while (hasNext) {
+
+                String baseUrl = "https://www.ebilet.pl/api/TitleListing/Search";
                 String url = String.format("%s?currentTab=2&sort=1&top=%d&size=%d", baseUrl, top, size);
+
                 logger.info("Fetching data from URL: {}", url);
 
                 HttpRequest request = HttpRequest.newBuilder()
@@ -57,7 +59,7 @@ public class ScrapperEbilet implements Scrapper {
                     JsonNode data = jsonNode.get("titles");
 
                     if (data != null && !data.isEmpty()) {
-                        data.forEach(allData::add);
+                        data.forEach(scrappedData::add);
                         top += size;
                     } else {
                         hasNext = false;
@@ -68,17 +70,13 @@ public class ScrapperEbilet implements Scrapper {
                 }
             }
 
-            eventMapper.mapEvents(allData);
-
         } catch (Exception e) {
             logger.error("An error occurred while scraping data", e);
         }
+
+        return scrappedData;
     }
 
-    @Override
-    public List<JsonNode> getResults() {
-        return allData;
-    }
 
     @Override
     public EventMapper getMapper() {

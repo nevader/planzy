@@ -7,8 +7,7 @@ import java.util.List;
 
 public interface Scrapper {
 
-    void scrapeData();
-    List<JsonNode> getResults();
+    List<JsonNode> scrapeData();
     EventMapper getMapper();
 
 }

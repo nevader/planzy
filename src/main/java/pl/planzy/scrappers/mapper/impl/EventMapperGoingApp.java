@@ -7,12 +7,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import pl.planzy.scrappers.mapper.EventMapper;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
-
 
 @Component("eventMapperGoingApp")
 public class EventMapperGoingApp implements EventMapper {
@@ -22,6 +18,7 @@ public class EventMapperGoingApp implements EventMapper {
 
     @Override
     public List<JsonNode> mapEvents(List<JsonNode> data) {
+
         logger.info("Starting to map events. Total events to map: {}", data.size());
 
         List<JsonNode> mappedEvents = new ArrayList<>();
@@ -34,15 +31,10 @@ public class EventMapperGoingApp implements EventMapper {
             }
         }
 
-        try {
-            mapper.writeValue(new File("mapped_events_going.json"), mappedEvents);
-            logger.info("Mapped events saved to mapped_events_going.json");
-        } catch (IOException e) {
-            logger.error("Error writing mapped events to file", e);
-        }
-
         logger.info("Finished mapping events. Total mapped events: {}", mappedEvents.size());
-        return null;
+
+        return mappedEvents;
+
     }
 
     private JsonNode mapGoingAppEvent(JsonNode event) {
