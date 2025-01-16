@@ -2,7 +2,6 @@ package pl.planzy.scrappers.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.microsoft.playwright.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,7 +14,6 @@ import pl.planzy.scrappers.mapper.impl.EventMapperGoingApp;
 import java.util.ArrayList;
 import java.util.List;
 
-
 @Component("scrapperGoingApp")
 public class ScrapperGoingApp implements Scrapper {
 
@@ -23,16 +21,21 @@ public class ScrapperGoingApp implements Scrapper {
     private final ObjectMapper mapper;
     private final EventMapper eventMapper;
 
-
     @Autowired
     public ScrapperGoingApp(ObjectMapper mapper, @Qualifier("eventMapperGoingApp") EventMapper eventMapper) {
         this.mapper = mapper;
         this.eventMapper = eventMapper;
     }
 
+    public static void main(String[] args) {
+        ScrapperGoingApp scrapper = new ScrapperGoingApp(new ObjectMapper(), new EventMapperGoingApp());
+        List<JsonNode> data = scrapper.scrapeData();
+        List<JsonNode> mappedData = scrapper.getMapper().mapEvents(data);
+        System.out.println(mappedData);
+    }
+
     @Override
     public List<JsonNode> scrapeData() {
-
         List<JsonNode> scrappedData = new ArrayList<>();
         Object lock = new Object();
         List<String> pendingRequests = new ArrayList<>();
@@ -66,7 +69,7 @@ public class ScrapperGoingApp implements Scrapper {
                             }
                         }
                     } catch (Exception e) {
-                        logger.error("[{}] Error processing JSON response from URL: {}", getClass().getSimpleName(), response.url(), e);
+                        logger.error("[{}] Error processing JSON response from URL: [{}]", getClass().getSimpleName(), response.url(), e);
                     } finally {
                         synchronized (lock) {
                             pendingRequests.remove(response.url());
@@ -76,11 +79,17 @@ public class ScrapperGoingApp implements Scrapper {
                 }
             });
 
-            String BASE_URL = "https://queue.goingapp.pl/szukaj";
+            String BASE_URL = "https://goingapp.pl/szukaj?refinementList%5Btype%5D%5B0%5D=rundate&refinementList%5Btype%5D%5B1%5D=activity";
             page.navigate(BASE_URL);
-            page.waitForTimeout(5000);
+            page.waitForTimeout(10000);
 
-            while (true) {
+            // Extract total number of records from the header element
+            String RECORDS_COUNT_SELECTOR = "#root > main > div.MuiBox-root.css-1kyexf6 > h6";
+            String recordsText = page.textContent(RECORDS_COUNT_SELECTOR).replaceAll("\\D", "");
+            int totalRecords = Integer.parseInt(recordsText);
+            logger.info("[{}] Total records to scrape: [{}]", getClass().getSimpleName(), totalRecords);
+
+            while (scrappedData.size() < totalRecords) {
                 try {
                     synchronized (lock) {
                         while (!pendingRequests.isEmpty()) {
@@ -88,31 +97,19 @@ public class ScrapperGoingApp implements Scrapper {
                         }
                     }
 
-                    String currentUrl = page.url();
-
-                    if (currentUrl.contains("page=")) {
-                        String[] urlParts = currentUrl.split("page=");
-                        if (urlParts.length > 1) {
-                            int currentPage = Integer.parseInt(urlParts[1].split("&")[0]); // Extract page number
-
-                            if (currentPage % 5 == 0) {
-                                logger.info("[{}] Pages scraped [{}/50] ...", getClass().getSimpleName(), currentPage);
-                            }
-                            if (currentPage >= 50) {
-                                logger.info("[{}] Last page reached (page=[{}]), ending iteration.", getClass().getSimpleName(), currentPage);
-                                break;
-                            }
-                        }
-                    }
-
                     String LOAD_MORE_BUTTON_SELECTOR = ".ais-InfiniteHits-loadMore";
                     if (page.isVisible(LOAD_MORE_BUTTON_SELECTOR)) {
                         page.click(LOAD_MORE_BUTTON_SELECTOR);
-                        page.waitForTimeout(2000);
+                        page.waitForTimeout(4000);
+                    } else {
+                        logger.info("[{}] No more 'Load More' button found, or all records loaded.", getClass().getSimpleName());
+                        break;
                     }
 
+                    logger.info("[{}] Progress: [{}/{}] records scraped ...", getClass().getSimpleName(), scrappedData.size(), totalRecords);
+
                 } catch (Exception e) {
-                    logger.warn("[{}] Error during 'Load More' button interaction or URL processing: [{}]", getClass().getSimpleName(), e.getMessage());
+                    logger.warn("[{}] Error during 'Load More' button interaction or scraping: [{}]", getClass().getSimpleName(), e.getMessage());
                     break;
                 }
             }
@@ -128,11 +125,8 @@ public class ScrapperGoingApp implements Scrapper {
         return scrappedData;
     }
 
-
     @Override
     public EventMapper getMapper() {
         return eventMapper;
     }
-
-
 }

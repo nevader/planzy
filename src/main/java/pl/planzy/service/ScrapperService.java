@@ -33,7 +33,7 @@ public class ScrapperService {
 
     public void scrapeAndMergeData() {
         if (scrapers.isEmpty()) {
-            logger.warn("[{}] No scrapers available for execution. Exiting scrapeAndMergeData.", getClass().getSimpleName());
+            logger.warn("[{}] No scrapers available for execution. Exiting scrapeAndMergeData", getClass().getSimpleName());
             return;
         }
 
