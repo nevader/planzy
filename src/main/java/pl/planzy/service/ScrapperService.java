@@ -25,29 +25,19 @@ public class ScrapperService {
     private final TaskExecutor taskExecutor;
     private final List<Scrapper> scrapers;
 
-    /**
-     * Constructor for ScrapperService
-     *
-     * @param objectMapper ObjectMapper for JSON handling
-     * @param taskExecutor Custom TaskExecutor for running scrapers concurrently
-     * @param scrapers     List of scrapers available in the system
-     */
     public ScrapperService(ObjectMapper objectMapper, @Qualifier("customTaskExecutor") TaskExecutor taskExecutor, List<Scrapper> scrapers) {
         this.objectMapper = objectMapper;
         this.taskExecutor = taskExecutor;
         this.scrapers = scrapers;
     }
 
-    /**
-     * Main method to scrape and merge data from all scrapers concurrently.
-     */
     public void scrapeAndMergeData() {
         if (scrapers.isEmpty()) {
-            logger.warn("No scrapers available for execution. Exiting scrapeAndMergeData.");
+            logger.warn("[{}] No scrapers available for execution. Exiting scrapeAndMergeData.", getClass().getSimpleName());
             return;
         }
 
-        logger.info("Starting scraping process with {} scrapers.", scrapers.size());
+        logger.info("[{}] Starting scraping process with [{}] scrapers.", getClass().getSimpleName(), scrapers.size());
 
         // List to hold all CompletableFuture tasks
         List<CompletableFuture<List<JsonNode>>> futures = new ArrayList<>();
@@ -56,10 +46,10 @@ public class ScrapperService {
         for (Scrapper scraper : scrapers) {
             CompletableFuture<List<JsonNode>> future = CompletableFuture.supplyAsync(() -> {
                 try {
-                    logger.info("Starting scraper: {}", scraper.getClass().getSimpleName());
+                    logger.info("[{}] Starting scraper: [{}]", getClass().getSimpleName(), scraper.getClass().getSimpleName());
                     return scraper.scrapeData(); // Directly fetch results from scrapeData
                 } catch (Exception e) {
-                    logger.error("Error occurred while scraping with {}: {}", scraper.getClass().getSimpleName(), e.getMessage());
+                    logger.error("[{}] Error occurred while scraping with [{}]: [{}]", getClass().getSimpleName(), scraper.getClass().getSimpleName(), e.getMessage());
                     return new ArrayList<>(); // Return an empty list on failure
                 }
             }, taskExecutor);
@@ -82,24 +72,19 @@ public class ScrapperService {
             saveResultsToFile(mergedResults);
 
         } catch (InterruptedException | ExecutionException e) {
-            logger.error("An error occurred while waiting for scrapers to complete.", e);
+            logger.error("[{}] An error occurred while waiting for scrapers to complete.", getClass().getSimpleName(), e);
         }
 
-        logger.info("Scraping process completed.");
+        logger.info("[{}] Scraping process completed.", getClass().getSimpleName());
     }
 
-    /**
-     * Save the merged results to a file.
-     *
-     * @param mergedResults List of JSON results to save
-     */
     private void saveResultsToFile(List<JsonNode> mergedResults) {
         File outputFile = new File("scraped_data.json");
         try {
             objectMapper.writeValue(outputFile, mergedResults);
-            logger.info("Scraped data saved to file: {}", outputFile.getAbsolutePath());
+            logger.info("[{}] Scraped data saved to file: [{}]", getClass().getSimpleName(), outputFile.getAbsolutePath());
         } catch (IOException e) {
-            logger.error("Failed to save scraped data to file.", e);
+            logger.error("[{}] Failed to save scraped data to file.", getClass().getSimpleName(), e);
         }
     }
 }

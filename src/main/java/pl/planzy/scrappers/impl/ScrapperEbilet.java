@@ -36,17 +36,17 @@ public class ScrapperEbilet implements Scrapper {
         int top = 0;
         boolean hasNext = true;
 
-
         try {
+
             HttpClient client = HttpClient.newHttpClient();
             ObjectMapper mapper = new ObjectMapper();
+
+            logger.info("[{}] Started fetching data ...", getClass().getSimpleName());
 
             while (hasNext) {
 
                 String baseUrl = "https://www.ebilet.pl/api/TitleListing/Search";
                 String url = String.format("%s?currentTab=2&sort=1&top=%d&size=%d", baseUrl, top, size);
-
-                logger.info("Fetching data from URL: {}", url);
 
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create(url))
@@ -64,15 +64,18 @@ public class ScrapperEbilet implements Scrapper {
                     } else {
                         hasNext = false;
                     }
+
                 } else {
-                    logger.error("Failed to fetch data. HTTP status code: {}", response.statusCode());
+                    logger.error("[{}] Failed to fetch data with HTTP status code: [{}]", getClass().getSimpleName(), response.statusCode());
                     hasNext = false;
                 }
             }
 
         } catch (Exception e) {
-            logger.error("An error occurred while scraping data", e);
+            logger.error("[{}] An error occurred while scraping data ", getClass().getSimpleName(), e);
         }
+
+        logger.info("[{}] Finished fetching. Total events fetched: [{}]", getClass().getSimpleName(), scrappedData.size());
 
         return scrappedData;
     }
