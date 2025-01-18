@@ -13,6 +13,7 @@ import pl.planzy.scrappers.mapper.impl.EventMapperGoingApp;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
 @Component("scrapperGoingApp")
 public class ScrapperGoingApp implements Scrapper {
@@ -30,8 +31,6 @@ public class ScrapperGoingApp implements Scrapper {
     public static void main(String[] args) {
         ScrapperGoingApp scrapper = new ScrapperGoingApp(new ObjectMapper(), new EventMapperGoingApp());
         List<JsonNode> data = scrapper.scrapeData();
-        List<JsonNode> mappedData = scrapper.getMapper().mapEvents(data);
-        System.out.println(mappedData);
     }
 
     @Override
@@ -39,6 +38,7 @@ public class ScrapperGoingApp implements Scrapper {
         List<JsonNode> scrappedData = new ArrayList<>();
         Object lock = new Object();
         List<String> pendingRequests = new ArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
 
         logger.info("[{}] Started fetching data ...", getClass().getSimpleName());
 
@@ -53,6 +53,8 @@ public class ScrapperGoingApp implements Scrapper {
                     }
                 }
             });
+
+            CountDownLatch finalLatch = latch;
 
             page.onResponse(response -> {
                 if (response.url().contains("algolia.net/1/indexes/") && response.status() == 200) {
@@ -73,7 +75,9 @@ public class ScrapperGoingApp implements Scrapper {
                     } finally {
                         synchronized (lock) {
                             pendingRequests.remove(response.url());
-                            lock.notifyAll();
+                            if (pendingRequests.isEmpty()) {
+                                finalLatch.countDown();
+                            }
                         }
                     }
                 }
@@ -83,7 +87,6 @@ public class ScrapperGoingApp implements Scrapper {
             page.navigate(BASE_URL);
             page.waitForTimeout(10000);
 
-            // Extract total number of records from the header element
             String RECORDS_COUNT_SELECTOR = "#root > main > div.MuiBox-root.css-1kyexf6 > h6";
             String recordsText = page.textContent(RECORDS_COUNT_SELECTOR).replaceAll("\\D", "");
             int totalRecords = Integer.parseInt(recordsText);
@@ -92,13 +95,14 @@ public class ScrapperGoingApp implements Scrapper {
             while (scrappedData.size() < totalRecords) {
                 try {
                     synchronized (lock) {
-                        while (!pendingRequests.isEmpty()) {
-                            lock.wait(1000);
+                        if (!pendingRequests.isEmpty()) {
+                            latch.await();
                         }
                     }
 
                     String LOAD_MORE_BUTTON_SELECTOR = ".ais-InfiniteHits-loadMore";
                     if (page.isVisible(LOAD_MORE_BUTTON_SELECTOR)) {
+                        latch = new CountDownLatch(1);
                         page.click(LOAD_MORE_BUTTON_SELECTOR);
                         page.waitForTimeout(4000);
                     } else {
