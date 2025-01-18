@@ -19,7 +19,7 @@ public class EventMapperGoingApp implements EventMapper {
     @Override
     public List<JsonNode> mapEvents(List<JsonNode> data) {
 
-        logger.info("Starting to map events. Total events to map: {}", data.size());
+        logger.info("[{}] Starting to map events. Total events to map: [{}]", getClass().getSimpleName(), data.size());
 
         List<JsonNode> mappedEvents = new ArrayList<>();
 
@@ -27,11 +27,11 @@ public class EventMapperGoingApp implements EventMapper {
             try {
                 mappedEvents.add(mapGoingAppEvent(event));
             } catch (Exception e) {
-                logger.error("Error mapping event: {}", event, e);
+                logger.error("[{}] Error mapping event: [{}]", getClass().getSimpleName(), event, e);
             }
         }
 
-        logger.info("Finished mapping events. Total mapped events: {}", mappedEvents.size());
+        logger.info("[{}] Finished mapping events. Total mapped events: [{}]", getClass().getSimpleName(), mappedEvents.size());
 
         return mappedEvents;
 

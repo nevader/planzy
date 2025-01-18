@@ -9,7 +9,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import pl.planzy.scrappers.mapper.EventMapper;
-import pl.planzy.scrappers.mapper.impl.EventMapperGoingApp;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,16 +27,13 @@ public class ScrapperGoingApp implements Scrapper {
         this.eventMapper = eventMapper;
     }
 
-    public static void main(String[] args) {
-        ScrapperGoingApp scrapper = new ScrapperGoingApp(new ObjectMapper(), new EventMapperGoingApp());
-        List<JsonNode> data = scrapper.scrapeData();
-    }
-
     @Override
     public List<JsonNode> scrapeData() {
+
         List<JsonNode> scrappedData = new ArrayList<>();
-        Object lock = new Object();
         List<String> pendingRequests = new ArrayList<>();
+
+        Object lock = new Object();
         CountDownLatch latch = new CountDownLatch(1);
 
         logger.info("[{}] Started fetching data ...", getClass().getSimpleName());

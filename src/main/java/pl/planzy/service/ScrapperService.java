@@ -5,9 +5,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.actuate.web.mappings.MappingsEndpoint;
 import org.springframework.core.task.TaskExecutor;
 import org.springframework.stereotype.Service;
 import pl.planzy.scrappers.impl.Scrapper;
+import pl.planzy.scrappers.mapper.EventMapper;
 
 import java.io.File;
 import java.io.IOException;
@@ -24,14 +26,19 @@ public class ScrapperService {
     private final ObjectMapper objectMapper;
     private final TaskExecutor taskExecutor;
     private final List<Scrapper> scrapers;
+    private final MappingsEndpoint mappingsEndpoint;
 
-    public ScrapperService(ObjectMapper objectMapper, @Qualifier("customTaskExecutor") TaskExecutor taskExecutor, List<Scrapper> scrapers) {
+    public ScrapperService(ObjectMapper objectMapper, @Qualifier("customTaskExecutor") TaskExecutor taskExecutor, List<Scrapper> scrapers, MappingsEndpoint mappingsEndpoint) {
         this.objectMapper = objectMapper;
         this.taskExecutor = taskExecutor;
         this.scrapers = scrapers;
+        this.mappingsEndpoint = mappingsEndpoint;
     }
 
     public void scrapeAndMergeData() {
+
+        List<CompletableFuture<List<JsonNode>>> futures = new ArrayList<>();
+
         if (scrapers.isEmpty()) {
             logger.warn("[{}] No scrapers available for execution. Exiting scrapeAndMergeData", getClass().getSimpleName());
             return;
@@ -39,36 +46,39 @@ public class ScrapperService {
 
         logger.info("[{}] Starting scraping process with [{}] scrapers.", getClass().getSimpleName(), scrapers.size());
 
-        // List to hold all CompletableFuture tasks
-        List<CompletableFuture<List<JsonNode>>> futures = new ArrayList<>();
-
-        // Submit tasks for each scraper
         for (Scrapper scraper : scrapers) {
+
             CompletableFuture<List<JsonNode>> future = CompletableFuture.supplyAsync(() -> {
+
                 try {
                     logger.info("[{}] Starting scraper: [{}]", getClass().getSimpleName(), scraper.getClass().getSimpleName());
-                    return scraper.scrapeData(); // Directly fetch results from scrapeData
+                    var scrapedData = scraper.scrapeData();
+                    EventMapper mapper = scraper.getMapper();
+                    var mappedData = mapper.mapEvents(scrapedData);
+                    logger.info("[{}] Finished scraping with [{}]. Total events scraped: [{}]. Total events mapped: [{}]", getClass().getSimpleName(), scraper.getClass().getSimpleName(), scrapedData.size(), mappedData.size());
+                    return mappedData;
+
                 } catch (Exception e) {
                     logger.error("[{}] Error occurred while scraping with [{}]: [{}]", getClass().getSimpleName(), scraper.getClass().getSimpleName(), e.getMessage());
-                    return new ArrayList<>(); // Return an empty list on failure
+                    return new ArrayList<>();
+
                 }
             }, taskExecutor);
 
             futures.add(future);
         }
 
-        // Wait for all scrapers to complete
+
         try {
             List<JsonNode> mergedResults = CompletableFuture
                     .allOf(futures.toArray(new CompletableFuture[0]))
                     .thenApply(v -> futures.stream()
                             .map(CompletableFuture::join)
-                            .flatMap(List::stream) // Flatten the results from all scrapers
+                            .flatMap(List::stream)
                             .toList()
                     )
-                    .get(); // Wait for the completion of all tasks
+                    .get();
 
-            // Save merged results to a file
             saveResultsToFile(mergedResults);
 
         } catch (InterruptedException | ExecutionException e) {

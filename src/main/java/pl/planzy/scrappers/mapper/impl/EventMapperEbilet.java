@@ -26,7 +26,7 @@ public class EventMapperEbilet implements EventMapper {
 
     @Override
     public List<JsonNode> mapEvents(List<JsonNode> data) {
-        logger.info("Starting to map events. Total events to map: {}", data.size());
+        logger.info("[{}] Starting to map events. Total events to map: [{}]", getClass().getSimpleName(), data.size());
 
         List<JsonNode> mappedEvents = new ArrayList<>();
 
@@ -34,11 +34,11 @@ public class EventMapperEbilet implements EventMapper {
             try {
                 mappedEvents.add(mapEbiletEvent(event));
             } catch (Exception e) {
-                logger.error("Error mapping event: {}", event, e);
+                logger.error("[{}] Error mapping event: {}", getClass().getSimpleName(), event, e);
             }
         }
 
-        logger.info("Finished mapping events. Total mapped events: {}", mappedEvents.size());
+        logger.info("[{}] Finished mapping events. Total mapped events: [{}]", getClass().getSimpleName(), mappedEvents.size());
 
         return mappedEvents;
     }
@@ -52,20 +52,16 @@ public class EventMapperEbilet implements EventMapper {
             try {
                 startDateTimestamp = convertToTimestamp(event.get("dateFrom").asText());
             } catch (DateTimeParseException e) {
-                logger.warn("Invalid date format for dateFrom: {}", event.get("dateFrom").asText(), e);
+                logger.warn("[{}] Invalid date format for 'dateFrom': [{}]", getClass().getSimpleName(), event.get("dateFrom").asText(), e);
             }
-        } else {
-            logger.info("dateFrom is null or empty for event: {}", event);
         }
 
         if (event.has("dateTo") && !event.get("dateTo").isNull() && !event.get("dateTo").asText().isEmpty() && !event.get("dateTo").asText().equalsIgnoreCase("null")) {
             try {
                 endDateTimeStamp = convertToTimestamp(event.get("dateTo").asText());
             } catch (DateTimeParseException e) {
-                logger.warn("Invalid date format for dateTo: {}", event.get("dateTo").asText(), e);
+                logger.warn("[{}] Invalid date format for dateTo: [{}]", getClass().getSimpleName(), event.get("dateTo").asText(), e);
             }
-        } else {
-            logger.info("dateTo is null or empty for event: {}", event);
         }
 
         String artistsNames = event.has("artists") && event.get("artists").isArray()
@@ -134,7 +130,7 @@ public class EventMapperEbilet implements EventMapper {
             LocalDateTime localDateTime = LocalDateTime.parse(dateString);
             return String.valueOf(localDateTime.toEpochSecond(ZoneOffset.UTC));
         } catch (Exception e) {
-            logger.error("Error parsing date: {}", dateString, e);
+            logger.error("[{}] Error parsing date: {}", getClass().getSimpleName(), dateString, e);
             throw new RuntimeException("Error parsing date: " + dateString, e);
         }
     }
