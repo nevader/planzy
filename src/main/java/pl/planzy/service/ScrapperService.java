@@ -26,13 +26,11 @@ public class ScrapperService {
     private final ObjectMapper objectMapper;
     private final TaskExecutor taskExecutor;
     private final List<Scrapper> scrapers;
-    private final MappingsEndpoint mappingsEndpoint;
 
-    public ScrapperService(ObjectMapper objectMapper, @Qualifier("customTaskExecutor") TaskExecutor taskExecutor, List<Scrapper> scrapers, MappingsEndpoint mappingsEndpoint) {
+    public ScrapperService(ObjectMapper objectMapper, @Qualifier("customTaskExecutor") TaskExecutor taskExecutor, List<Scrapper> scrapers) {
         this.objectMapper = objectMapper;
         this.taskExecutor = taskExecutor;
         this.scrapers = scrapers;
-        this.mappingsEndpoint = mappingsEndpoint;
     }
 
     public void scrapeAndMergeData() {
