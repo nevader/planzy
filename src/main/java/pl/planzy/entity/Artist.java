@@ -7,6 +7,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.HashSet;
+import java.util.Set;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -22,6 +25,19 @@ public class Artist {
     private Long id;
 
     @Column(name = "artist_name", nullable = false)
-    private String artist_name;
+    private String name;
+
+    @ManyToMany(mappedBy = "artists")
+    private Set<Event> events = new HashSet<>();
+
+    public void addEvent(Event event) {
+        this.events.add(event);
+        event.getArtists().add(this);
+    }
+
+    public void removeEvent(Event event) {
+        this.events.remove(event);
+        event.getArtists().remove(this);
+    }
 
 }

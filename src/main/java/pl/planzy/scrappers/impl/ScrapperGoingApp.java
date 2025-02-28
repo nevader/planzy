@@ -29,8 +29,7 @@ public class ScrapperGoingApp implements Scrapper {
 
     @Override
     public List<JsonNode> scrapeData() {
-
-        List<JsonNode> scrappedData = new ArrayList<>();
+        List<JsonNode> scrapedData = new ArrayList<>();
         List<String> pendingRequests = new ArrayList<>();
 
         Object lock = new Object();
@@ -42,6 +41,7 @@ public class ScrapperGoingApp implements Scrapper {
             Browser browser = playwright.chromium().launch(new BrowserType.LaunchOptions().setHeadless(false));
             Page page = browser.newPage();
 
+            // Configure request tracking
             page.onRequest(request -> {
                 if (request.url().contains("algolia.net/1/indexes/")) {
                     synchronized (lock) {
@@ -52,6 +52,7 @@ public class ScrapperGoingApp implements Scrapper {
 
             CountDownLatch finalLatch = latch;
 
+            // Configure response handling
             page.onResponse(response -> {
                 if (response.url().contains("algolia.net/1/indexes/") && response.status() == 200) {
                     try {
@@ -62,7 +63,7 @@ public class ScrapperGoingApp implements Scrapper {
 
                             if (hits.isArray()) {
                                 for (JsonNode hit : hits) {
-                                    scrappedData.add(hit);
+                                    scrapedData.add(hit);
                                 }
                             }
                         }
@@ -79,16 +80,23 @@ public class ScrapperGoingApp implements Scrapper {
                 }
             });
 
+            // Navigate to initial page
             String BASE_URL = "https://goingapp.pl/szukaj?refinementList%5Btype%5D%5B0%5D=rundate&refinementList%5Btype%5D%5B1%5D=activity";
             page.navigate(BASE_URL);
+
+            // Wait for initial page load
             page.waitForTimeout(10000);
 
+            // Get total records count
             String RECORDS_COUNT_SELECTOR = "#root > main > div.MuiBox-root.css-1kyexf6 > h6";
             String recordsText = page.textContent(RECORDS_COUNT_SELECTOR).replaceAll("\\D", "");
             int totalRecords = Integer.parseInt(recordsText);
             logger.info("[{}] Total records to scrape: [{}]", getClass().getSimpleName(), totalRecords);
 
-            while (scrappedData.size() < totalRecords) {
+            boolean hasMoreContent = true;
+            int maxAttempts = 3; // Maximum number of attempts to click when errors occur
+
+            while (hasMoreContent && scrapedData.size() < totalRecords) {
                 try {
                     synchronized (lock) {
                         if (!pendingRequests.isEmpty()) {
@@ -97,20 +105,84 @@ public class ScrapperGoingApp implements Scrapper {
                     }
 
                     String LOAD_MORE_BUTTON_SELECTOR = ".ais-InfiniteHits-loadMore";
-                    if (page.isVisible(LOAD_MORE_BUTTON_SELECTOR)) {
-                        latch = new CountDownLatch(1);
-                        page.click(LOAD_MORE_BUTTON_SELECTOR);
-                        page.waitForTimeout(4000);
-                    } else {
-                        logger.info("[{}] No more 'Load More' button found, or all records loaded.", getClass().getSimpleName());
-                        break;
+
+                    // First check if the button exists at all
+                    ElementHandle loadMoreButton = page.querySelector(LOAD_MORE_BUTTON_SELECTOR);
+                    if (loadMoreButton == null) {
+                        logger.info("[{}] No 'Load More' button found, assuming all content is loaded.", getClass().getSimpleName());
+                        hasMoreContent = false;
+                        continue;
                     }
 
-                    logger.info("[{}] Progress: [{}/{}] records scraped ...", getClass().getSimpleName(), scrappedData.size(), totalRecords);
+                    // Then check if the button is disabled
+                    boolean isDisabled = loadMoreButton.isDisabled();
+                    if (isDisabled) {
+                        logger.info("[{}] 'Load More' button is disabled, assuming all content is loaded.", getClass().getSimpleName());
+                        hasMoreContent = false;
+                        continue;
+                    }
+
+                    // If we get here, the button exists and is not disabled
+                    latch = new CountDownLatch(1);
+
+                    // Scroll to the button to ensure it's in view
+                    loadMoreButton.scrollIntoViewIfNeeded();
+
+                    // Click with retry logic
+                    boolean clickSuccess = false;
+                    for (int attempt = 0; attempt < maxAttempts; attempt++) {
+                        try {
+                            loadMoreButton.click(new ElementHandle.ClickOptions().setTimeout(5000));
+                            clickSuccess = true;
+                            break;
+                        } catch (TimeoutError e) {
+                            // Check if the button became disabled
+                            if (loadMoreButton.isDisabled()) {
+                                logger.info("[{}] 'Load More' button became disabled during click attempt.", getClass().getSimpleName());
+                                hasMoreContent = false;
+                                break;
+                            }
+
+                            if (attempt == maxAttempts - 1) {
+                                throw e; // Re-throw on last attempt
+                            }
+
+                            logger.info("[{}] Click attempt {} failed, retrying...", getClass().getSimpleName(), attempt + 1);
+                            page.waitForTimeout(2000); // Wait a bit before retrying
+                        }
+                    }
+
+                    if (!clickSuccess && hasMoreContent) {
+                        logger.warn("[{}] Failed to click 'Load More' button after {} attempts. Moving on.",
+                                getClass().getSimpleName(), maxAttempts);
+                        hasMoreContent = false;
+                        continue;
+                    }
+
+                    // Wait for content to load
+                    page.waitForTimeout(4000);
+
+                    logger.info("[{}] Progress: [{}/{}] records scraped ...",
+                            getClass().getSimpleName(), scrapedData.size(), totalRecords);
 
                 } catch (Exception e) {
-                    logger.warn("[{}] Error during 'Load More' button interaction or scraping: [{}]", getClass().getSimpleName(), e.getMessage());
-                    break;
+                    if (e instanceof TimeoutError) {
+                        // This is likely just the end of content
+                        logger.info("[{}] Timeout reached, assuming all content has been loaded.", getClass().getSimpleName());
+                        hasMoreContent = false;
+                    } else {
+                        // Log other errors but continue with the data we have
+                        logger.warn("[{}] Error during scraping: {}", getClass().getSimpleName(), e.getMessage());
+                        // Attempt to continue if we have some data
+                        if (scrapedData.size() > 0) {
+                            logger.info("[{}] Continuing with {} records already scraped.",
+                                    getClass().getSimpleName(), scrapedData.size());
+                            hasMoreContent = false;
+                        } else {
+                            // If we have no data, this is a fatal error
+                            throw new RuntimeException("Failed to scrape any data", e);
+                        }
+                    }
                 }
             }
 
@@ -118,11 +190,15 @@ public class ScrapperGoingApp implements Scrapper {
 
         } catch (Exception e) {
             logger.error("[{}] An error occurred while scraping data", getClass().getSimpleName(), e);
+            // If we've collected some data, we'll return it despite the error
+            if (scrapedData.isEmpty()) {
+                throw new RuntimeException("Failed to scrape any data from GoingApp", e);
+            }
         }
 
-        logger.info("[{}] Finished fetching. Total events fetched: [{}]", getClass().getSimpleName(), scrappedData.size());
+        logger.info("[{}] Finished fetching. Total events fetched: [{}]", getClass().getSimpleName(), scrapedData.size());
 
-        return scrappedData;
+        return scrapedData;
     }
 
     @Override

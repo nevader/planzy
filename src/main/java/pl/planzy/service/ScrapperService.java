@@ -33,13 +33,13 @@ public class ScrapperService {
         this.scrapers = scrapers;
     }
 
-    public void scrapeAndMergeData() {
+    public List<JsonNode> scrapeAndMergeData() {
 
         List<CompletableFuture<List<JsonNode>>> futures = new ArrayList<>();
 
         if (scrapers.isEmpty()) {
             logger.warn("[{}] No scrapers available for execution. Exiting scrapeAndMergeData", getClass().getSimpleName());
-            return;
+            return null;
         }
 
         logger.info("[{}] Starting scraping process with [{}] scrapers.", getClass().getSimpleName(), scrapers.size());
@@ -66,9 +66,9 @@ public class ScrapperService {
             futures.add(future);
         }
 
-
+        List<JsonNode> mergedResults = new ArrayList<>();
         try {
-            List<JsonNode> mergedResults = CompletableFuture
+            mergedResults = CompletableFuture
                     .allOf(futures.toArray(new CompletableFuture[0]))
                     .thenApply(v -> futures.stream()
                             .map(CompletableFuture::join)
@@ -77,14 +77,16 @@ public class ScrapperService {
                     )
                     .get();
 
-            saveResultsToFile(mergedResults);
 
         } catch (InterruptedException | ExecutionException e) {
             logger.error("[{}] An error occurred while waiting for scrapers to complete.", getClass().getSimpleName(), e);
         }
 
         logger.info("[{}] Scraping process completed.", getClass().getSimpleName());
+
+        return mergedResults;
     }
+
 
     private void saveResultsToFile(List<JsonNode> mergedResults) {
         File outputFile = new File("scraped_data.json");
