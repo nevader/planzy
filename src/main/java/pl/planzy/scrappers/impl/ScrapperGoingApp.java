@@ -96,7 +96,7 @@ public class ScrapperGoingApp implements Scrapper {
             boolean hasMoreContent = true;
             int maxAttempts = 3; // Maximum number of attempts to click when errors occur
 
-            while (hasMoreContent && scrapedData.size() < totalRecords) {
+            while (hasMoreContent && scrapedData.size() < 100) {
                 try {
                     synchronized (lock) {
                         if (!pendingRequests.isEmpty()) {

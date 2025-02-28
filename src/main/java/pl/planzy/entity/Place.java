@@ -1,6 +1,5 @@
 package pl.planzy.entity;
 
-
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -9,6 +8,7 @@ import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 @Getter
 @Setter
@@ -16,8 +16,9 @@ import java.util.List;
 @AllArgsConstructor
 
 @Entity
-@Table(name = "places")
-
+@Table(name = "places", indexes = {
+        @Index(name = "idx_place_name", columnList = "place_name", unique = true)
+})
 public class Place {
 
     @Id
@@ -25,22 +26,34 @@ public class Place {
     private Long id;
 
     @Column(name = "place_name", nullable = false)
-    private String place_name;
+    private String name;
 
-    // Bidirectional relationship with Event
-    @OneToMany(mappedBy = "place", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "place", fetch = FetchType.LAZY)
     private List<Event> events = new ArrayList<>();
 
-    // Helper methods to maintain bidirectional relationship
-    public void addEvent(Event event) {
-        events.add(event);
-        event.setPlace(this);
+    /**
+     * Two places are considered equal if they have the same ID, or if both IDs are null
+     * and they have the same name (which should be unique).
+     */
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Place place = (Place) o;
+        return Objects.equals(id, place.id) ||
+                (id == null && place.id == null && Objects.equals(name, place.name));
     }
 
-    public void removeEvent(Event event) {
-        events.remove(event);
-        event.setPlace(null);
+    @Override
+    public int hashCode() {
+        return Objects.hash(id != null ? id : name);
     }
 
-
+    @Override
+    public String toString() {
+        return "Place{" +
+                "id=" + id +
+                ", name='" + name + '\'' +
+                '}';
+    }
 }

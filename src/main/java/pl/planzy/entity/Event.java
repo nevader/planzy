@@ -1,15 +1,14 @@
 package pl.planzy.entity;
 
-
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 @Getter
@@ -19,14 +18,13 @@ import java.util.Set;
 
 @Entity
 @Table(name = "events")
-
 public class Event {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "event_name", nullable = false)
+    @Column(name = "event_name", nullable = false, length = 500)
     private String event_name;
 
     @Column(name = "start_date", nullable = false)
@@ -35,25 +33,25 @@ public class Event {
     @Column(name = "end_date", nullable = false)
     private LocalDateTime end_date;
 
-    @Column(name = "thumbnail", nullable = false)
+    @Column(name = "thumbnail", nullable = false, length = 500)
     private String thumbnail;
 
-    @Column(name = "url", nullable = false)
+    @Column(name = "url", nullable = false, length = 500, unique = true)
     private String url;
 
-    @Column(name = "location", nullable = false)
+    @Column(name = "location", nullable = false, length = 500)
     private String location;
 
-    @Column(name = "category", nullable = false)
+    @Column(name = "category", nullable = false, length = 500)
     private String category;
 
-    @Column(name = "description", nullable = false)
+    @Column(name = "description", nullable = false, columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "source", nullable = false)
+    @Column(name = "source", nullable = false, length = 500)
     private String source;
 
-    @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(
             name = "event_artists",
             joinColumns = @JoinColumn(name = "event_id"),
@@ -61,7 +59,7 @@ public class Event {
     )
     private Set<Artist> artists = new HashSet<>();
 
-    @ManyToMany(cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(
             name = "event_tags",
             joinColumns = @JoinColumn(name = "event_id"),
@@ -73,39 +71,35 @@ public class Event {
     @JoinColumn(name = "place_id")
     private Place place;
 
-    public void addArtist(Artist artist) {
-        artists.add(artist);
-        artist.getEvents().add(this);
-    }
-
-    public void removeArtist(Artist artist) {
-        artists.remove(artist);
-        artist.getEvents().remove(this);
-    }
-
-    public void addTag(Tag tag) {
-        tags.add(tag);
-        tag.getEvents().add(this);
-    }
-
-    public void removeTag(Tag tag) {
-        tags.remove(tag);
-        tag.getEvents().remove(this);
-    }
-
+    // Simplified method that avoids bidirectional relationship issues
     public void setPlace(Place place) {
-        // Remove from old place if exists
-        if (this.place != null) {
-            this.place.getEvents().remove(this);
-        }
-
-        // Set new place
         this.place = place;
-
-        // Add to new place's events if not null
-        if (place != null) {
-            place.getEvents().add(this);
-        }
     }
 
+    /**
+     * Two events are considered equal if they have the same ID, or if both IDs are null
+     * and they have the same URL (which should be unique).
+     */
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Event event = (Event) o;
+        return Objects.equals(id, event.id) ||
+                (id == null && event.id == null && Objects.equals(url, event.url));
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id != null ? id : url);
+    }
+
+    @Override
+    public String toString() {
+        return "Event{" +
+                "id=" + id +
+                ", event_name='" + event_name + '\'' +
+                ", url='" + url + '\'' +
+                '}';
+    }
 }

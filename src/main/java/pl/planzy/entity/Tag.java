@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
 
 @Getter
@@ -15,8 +16,9 @@ import java.util.Set;
 @AllArgsConstructor
 
 @Entity
-@Table(name = "tags")
-
+@Table(name = "tags", indexes = {
+        @Index(name = "idx_tag_name", columnList = "tag_name", unique = true)
+})
 public class Tag {
 
         @Id
@@ -24,19 +26,34 @@ public class Tag {
         private Long id;
 
         @Column(name = "tag_name", nullable = false)
-        private String tag_name;
+        private String name;
 
-        @ManyToMany(mappedBy = "tags")
+        @ManyToMany(mappedBy = "tags", fetch = FetchType.LAZY)
         private Set<Event> events = new HashSet<>();
 
-        // Helper methods to maintain bidirectional relationship
-        public void addEvent(Event event) {
-                this.events.add(event);
-                event.getTags().add(this);
+        /**
+         * Two tags are considered equal if they have the same ID, or if both IDs are null
+         * and they have the same name (which should be unique).
+         */
+        @Override
+        public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                Tag tag = (Tag) o;
+                return Objects.equals(id, tag.id) ||
+                        (id == null && tag.id == null && Objects.equals(name, tag.name));
         }
 
-        public void removeEvent(Event event) {
-                this.events.remove(event);
-                event.getTags().remove(this);
+        @Override
+        public int hashCode() {
+                return Objects.hash(id != null ? id : name);
+        }
+
+        @Override
+        public String toString() {
+                return "Tag{" +
+                        "id=" + id +
+                        ", name='" + name + '\'' +
+                        '}';
         }
 }
